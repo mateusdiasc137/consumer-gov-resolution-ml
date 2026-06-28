@@ -1,0 +1,51 @@
+feature_codificada,importancia,variavel,categoria,label_grafico
+"cat__Segmento de Mercado_Operadoras de Telecomunicações (Telefonia, Internet, TV por assinatura)",0.22556259,Segmento de Mercado,"Operadoras de Telecomunicações (Telefonia, Internet, TV por assinatura)","Segmento: Operadoras de Telecomunicações (Telefonia, Internet, TV por assinatura)"
+cat__Área_Turismo/Viagens,0.084222175,Área,Turismo/Viagens,Área: Turismo/Viagens
+cat__Área_Telecomunicações,0.08030352,Área,Telecomunicações,Área: Telecomunicações
+"cat__Segmento de Mercado_Viagens, Turismo e Hospedagem",0.021213425,Segmento de Mercado,"Viagens, Turismo e Hospedagem","Segmento: Viagens, Turismo e Hospedagem"
+cat__Assunto_Pacote / excursão / agência de turismo,0.013687782,Assunto,Pacote / excursão / agência de turismo,Assunto: Pacote / excursão / agência de turismo
+cat__Assunto_Superior ( Graduação e Pós ),0.01277718,Assunto,Superior ( Graduação e Pós ),Assunto: Superior ( Graduação e Pós )
+cat__Mês Abertura_Não informado,0.012278914,Mês Abertura,Não informado,Mês: Não informado
+cat__Área_Demais Produtos,0.009223714,Área,Demais Produtos,Área: Demais Produtos
+cat__Segmento de Mercado_Transporte Aéreo,0.008378751,Segmento de Mercado,Transporte Aéreo,Segmento: Transporte Aéreo
+"cat__Segmento de Mercado_Fabricantes - Eletroeletrônicos,  Produtos de Telefonia e Informática",0.0075912704,Segmento de Mercado,"Fabricantes - Eletroeletrônicos,  Produtos de Telefonia e Informática","Segmento: Fabricantes - Eletroeletrônicos,  Produtos de Telefonia e Informática"
+cat__Segmento de Mercado_Programas de Fidelidade,0.0071735503,Segmento de Mercado,Programas de Fidelidade,Segmento: Programas de Fidelidade
+cat__Assunto_Aparelho de telefone fixo / interfone,0.006963905,Assunto,Aparelho de telefone fixo / interfone,Assunto: Aparelho de telefone fixo / interfone
+cat__Assunto_Crédito Consignado / Cartão de Crédito Consignado / RMC (para beneficiários do INSS),0.0068761543,Assunto,Crédito Consignado / Cartão de Crédito Consignado / RMC (para beneficiários do INSS),Assunto: Crédito Consignado / Cartão de Crédito Consignado / RMC (para beneficiários do INSS)
+cat__Problema_Não entrega / demora na entrega do produto,0.0068733934,Problema,Não entrega / demora na entrega do produto,Problema: Não entrega / demora na entrega do produto
+cat__Problema_SAC - Dificuldade para cancelar o serviço,0.006482964,Problema,SAC - Dificuldade para cancelar o serviço,Problema: SAC - Dificuldade para cancelar o serviço
+"cat__Segmento de Mercado_Energia Elétrica, Gás, Água e Esgoto",0.006392023,Segmento de Mercado,"Energia Elétrica, Gás, Água e Esgoto","Segmento: Energia Elétrica, Gás, Água e Esgoto"
+cat__Assunto_Telefonia Móvel Pós-paga,0.006138305,Assunto,Telefonia Móvel Pós-paga,Assunto: Telefonia Móvel Pós-paga
+cat__Área_Educação,0.0058402997,Área,Educação,Área: Educação
+cat__Problema_Danos materiais causados por falha na prestação do serviço (queima de aparelhos elétricos),0.0055668554,Problema,Danos materiais causados por falha na prestação do serviço (queima de aparelhos elétricos),Problema: Danos materiais causados por falha na prestação do serviço (queima de aparelhos elétricos)
+"cat__Segmento de Mercado_Montadoras, Concessionárias e Prestadores de Serviços Automotivos",0.005557925,Segmento de Mercado,"Montadoras, Concessionárias e Prestadores de Serviços Automotivos","Segmento: Montadoras, Concessionárias e Prestadores de Serviços Automotivos"
+cat__Problema_Negativa de cobertura / Demora injustificada ou Divergência na indenização,0.005470099,Problema,Negativa de cobertura / Demora injustificada ou Divergência na indenização,Problema: Negativa de cobertura / Demora injustificada ou Divergência na indenização
+cat__Assunto_Energia Elétrica,0.005194086,Assunto,Energia Elétrica,Assunto: Energia Elétrica
+cat__Assunto_Demais Seguros (exceto habitacional),0.004737737,Assunto,Demais Seguros (exceto habitacional),Assunto: Demais Seguros (exceto habitacional)
+"cat__Problema_Vazamento de dados ou outros incidentes de segurança (acessos não autorizados e situações acidentais ou ilícitas de destruição, perda, alteração, comunicação ou tratamento inadequado ou ilícito)",0.0046790545,Problema,"Vazamento de dados ou outros incidentes de segurança (acessos não autorizados e situações acidentais ou ilícitas de destruição, perda, alteração, comunicação ou tratamento inadequado ou ilícito)","Problema: Vazamento de dados ou outros incidentes de segurança (acessos não autorizados e situações acidentais ou ilícitas de destruição, perda, alteração, comunicação ou tratamento inadequado ou ilícito)"
+cat__Assunto_Serviços Postais,0.004624993,Assunto,Serviços Postais,Assunto: Serviços Postais
+cat__Grupo Problema_Cobrança / Contestação,0.004623639,Grupo Problema,Cobrança / Contestação,Grupo: Cobrança / Contestação
+cat__Problema_Não entrega do contrato ou documentação relacionada ao serviço,0.004619762,Problema,Não entrega do contrato ou documentação relacionada ao serviço,Problema: Não entrega do contrato ou documentação relacionada ao serviço
+"cat__Área_Água, Energia, Gás",0.004554255,Área,"Água, Energia, Gás","Área: Água, Energia, Gás"
+cat__Segmento de Mercado_Empresas de Recuperação de Crédito,0.0044609252,Segmento de Mercado,Empresas de Recuperação de Crédito,Segmento: Empresas de Recuperação de Crédito
+"cat__Assunto_Programas de Fidelidade / Benefícios (pontos, milhagem etc)",0.0044237776,Assunto,"Programas de Fidelidade / Benefícios (pontos, milhagem etc)","Assunto: Programas de Fidelidade / Benefícios (pontos, milhagem etc)"
+"cat__Problema_Cálculo de juros, saldo devedor (contestação, solicitação de histórico, dúvidas)",0.0043938863,Problema,"Cálculo de juros, saldo devedor (contestação, solicitação de histórico, dúvidas)","Problema: Cálculo de juros, saldo devedor (contestação, solicitação de histórico, dúvidas)"
+cat__Problema_Dificuldade para rescindir o contrato / cancelar o serviço,0.0043327,Problema,Dificuldade para rescindir o contrato / cancelar o serviço,Problema: Dificuldade para rescindir o contrato / cancelar o serviço
+cat__UF_RS,0.004298878,UF,RS,UF: RS
+"cat__Problema_Venda casada (garantia estendida, seguro, cursos etc)",0.0042327354,Problema,"Venda casada (garantia estendida, seguro, cursos etc)","Problema: Venda casada (garantia estendida, seguro, cursos etc)"
+cat__Problema_Cobrança por Irregularidade ou defeito na medição,0.0039994954,Problema,Cobrança por Irregularidade ou defeito na medição,Problema: Cobrança por Irregularidade ou defeito na medição
+cat__Assunto_Aéreo,0.003833166,Assunto,Aéreo,Assunto: Aéreo
+cat__Assunto_Financiamentos de Veículos / Leasing,0.0038150342,Assunto,Financiamentos de Veículos / Leasing,Assunto: Financiamentos de Veículos / Leasing
+cat__Problema_Dificuldade de contato / acesso a outros canais (exceto SAC),0.00368856,Problema,Dificuldade de contato / acesso a outros canais (exceto SAC),Problema: Dificuldade de contato / acesso a outros canais (exceto SAC)
+cat__Área_Serviços Financeiros,0.0036566486,Área,Serviços Financeiros,Área: Serviços Financeiros
+cat__Problema_Alteração / rescisão de contrato sem solicitação / aviso prévio,0.0036334768,Problema,Alteração / rescisão de contrato sem solicitação / aviso prévio,Problema: Alteração / rescisão de contrato sem solicitação / aviso prévio
+cat__Área_Transportes,0.0036100973,Área,Transportes,Área: Transportes
+cat__Problema_Dificuldade para alterar/ ativar serviços,0.0035762407,Problema,Dificuldade para alterar/ ativar serviços,Problema: Dificuldade para alterar/ ativar serviços
+cat__Problema_Renegociação / parcelamento de dívida,0.0035554636,Problema,Renegociação / parcelamento de dívida,Problema: Renegociação / parcelamento de dívida
+cat__Segmento de Mercado_Empresas de Serviços Postais e Logística,0.0034103603,Segmento de Mercado,Empresas de Serviços Postais e Logística,Segmento: Empresas de Serviços Postais e Logística
+cat__Problema_Dificuldade para contratar / recusa injustificada,0.0032896367,Problema,Dificuldade para contratar / recusa injustificada,Problema: Dificuldade para contratar / recusa injustificada
+cat__Problema_Recusa em cancelar compra/serviço no prazo de arrependimento (compra fora do estabelecimento),0.003227759,Problema,Recusa em cancelar compra/serviço no prazo de arrependimento (compra fora do estabelecimento),Problema: Recusa em cancelar compra/serviço no prazo de arrependimento (compra fora do estabelecimento)
+cat__Assunto_Demais Seguros,0.0032255156,Assunto,Demais Seguros,Assunto: Demais Seguros
+cat__Segmento de Mercado_Agências de Viagens,0.003146857,Segmento de Mercado,Agências de Viagens,Segmento: Agências de Viagens
+cat__Ano Abertura_2014.0,0.003051231,Ano Abertura,2014.0,Ano: 2014.0
+cat__Segmento de Mercado_Não informado,0.0030076052,Segmento de Mercado,Não informado,Segmento: Não informado

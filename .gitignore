@@ -1,0 +1,17 @@
+# Cache Python
+__pycache__/
+*.pyc
+
+# Ambientes virtuais
+.venv/
+venv/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Arquivos temporários
+*.log
+*.tmp
+
+# Sistema
+.DS_Store
