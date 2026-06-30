@@ -1,0 +1,21 @@
+# Coloque este arquivo em: .streamlit/config.toml (na RAIZ do projeto,
+# ao lado das pastas app/, models/, data/ e results/ — não dentro de app/).
+#
+# Ele define o tema nativo do Streamlit (cores de botões, abas, sliders,
+# bordas etc.) usando a mesma paleta do CSS injetado pelo painel.
+# É opcional: o painel funciona normalmente sem ele, só fica menos
+# consistente em alguns componentes nativos (abas, foco de campos).
+
+[theme]
+base = "light"
+primaryColor = "#129E8C"
+backgroundColor = "#F7F9FB"
+secondaryBackgroundColor = "#FFFFFF"
+textColor = "#16242E"
+baseRadius = "large"
+showSidebarBorder = true
+chartCategoricalColors = ["#0E3A53", "#129E8C", "#D97A3D", "#1C5C82", "#8A4A1E", "#51677A"]
+
+[theme.sidebar]
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#F7F9FB"
