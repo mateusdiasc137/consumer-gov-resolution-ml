@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 import unicodedata
 from dataclasses import dataclass
@@ -48,12 +49,6 @@ st.set_page_config(
 # ============================================================
 # Identidade visual (paleta, tipografia, CSS)
 # ============================================================
-#
-# Paleta pensada para um painel de dados públicos: tons de azul/petróleo
-# (confiança, institucional) com um verde-azulado de destaque para métricas
-# positivas e um terracota usado com moderação em alertas. As mesmas cores
-# alimentam o CSS injetado abaixo e os gráficos Plotly (PLOTLY_COLORWAY),
-# para que tudo tenha a mesma cara.
 
 CORES = {
     "primaria": "#0E3A53",
@@ -364,11 +359,6 @@ def opcoes(dados, coluna):
 
     return valores
 
-
-# ============================================================
-# Gráficos (Plotly), com o mesmo tema visual do restante do painel
-# ============================================================
-
 def aplicar_tema_plotly(fig):
     fig.update_layout(
         template="plotly_white",
@@ -421,7 +411,7 @@ def grafico_barra(df, coluna_modelo, coluna_metrica, titulo, menor_melhor=False,
         showlegend=False,
     )
 
-    st.plotly_chart(fig, width="stretch")
+    st.plotly_chart(fig, use_container_width=True)
 
 
 def grafico_contagem(dados, coluna, titulo, top_n=10):
@@ -461,7 +451,7 @@ def grafico_contagem(dados, coluna, titulo, top_n=10):
         margin=dict(l=20, r=30, t=60, b=20),
     )
 
-    st.plotly_chart(fig, width="stretch")
+    st.plotly_chart(fig, use_container_width=True)
 
 
 def grafico_gauge_probabilidade(probabilidade, media_geral):
@@ -502,7 +492,7 @@ def grafico_gauge_probabilidade(probabilidade, media_geral):
     )
 
     aplicar_tema_plotly(fig)
-    fig.update_layout(height=300, margin=dict(l=30, r=30, t=70, b=10))
+    fig.update_layout(title="", height=300, margin=dict(l=30, r=30, t=70, b=10))
 
     return fig
 
@@ -619,20 +609,10 @@ target_col = encontrar_coluna(train, ["target_resolvida", "target", "resolvida"]
 # ============================================================
 # Integração com a Gemini API (com fallback entre modelos)
 # ============================================================
-#
-# Endpoint e formato de payload seguem a documentação oficial do endpoint
-# REST `generateContent` (https://ai.google.dev/api/generate-content):
-#   POST {base}/models/{model}:generateContent
-#   headers: {"x-goog-api-key": API_KEY}
-#   body:    {"contents": [...], "generationConfig": {...}}
-#
-# A lista abaixo usa modelos Gemini atualmente disponíveis (revise em
-# https://ai.google.dev/gemini-api/docs/models de tempos em tempos, pois a
-# Google descontinua modelos antigos periodicamente).
 
 GEMINI_API_BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
 GEMINI_TIMEOUT_SEGUNDOS = 45
-GEMINI_MAX_OUTPUT_TOKENS = 1024
+GEMINI_MAX_OUTPUT_TOKENS = 8192
 
 GEMINI_MODELS_FALLBACK = [
     ("gemini-3.5-flash", "Gemini 3.5 Flash"),
@@ -806,6 +786,149 @@ def exibir_erro_gemini(erro):
 
 
 # ============================================================
+# Extração de campos via IA (preenchimento automático)
+# ============================================================
+
+CAMPOS_FORMULARIO = [
+    "Sexo",
+    "Faixa Etária",
+    "Região",
+    "UF",
+    "Canal de Origem",
+    "Como Comprou Contratou",
+    "Ano Abertura",
+    "Mês Abertura",
+    "Segmento de Mercado",
+    "Área",
+    "Assunto",
+    "Grupo Problema",
+    "Problema",
+    "Procurou Empresa",
+]
+
+# Campos com muitos valores — enviar apenas os top N mais frequentes no prompt
+_LIMITE_OPCOES_PROMPT = 60
+
+
+def _opcoes_para_prompt(dados_df, campo, limite=_LIMITE_OPCOES_PROMPT):
+    """Retorna as opções de um campo, limitando a quantidade para prompts grandes."""
+    if campo not in dados_df.columns:
+        return []
+
+    contagem = (
+        dados_df[campo]
+        .fillna("Não informado")
+        .astype(str)
+        .str.strip()
+        .replace("", "Não informado")
+        .value_counts()
+    )
+
+    valores = contagem.head(limite).index.tolist()
+    return sorted(valores)
+
+
+def extrair_campos_com_gemini(descricao, dados_df):
+    """
+    Envia a descrição em linguagem natural ao Gemini e retorna um dict
+    com os valores extraídos para cada campo do formulário.
+    Retorna (campos_dict, modelo_usado) ou levanta GeminiIndisponivelError.
+    """
+    # Montar bloco de opções por campo
+    blocos_opcoes = []
+    for campo in CAMPOS_FORMULARIO:
+        lista = _opcoes_para_prompt(dados_df, campo)
+        if lista:
+            blocos_opcoes.append(f'"{campo}": {json.dumps(lista, ensure_ascii=False)}')
+
+    opcoes_texto = ",\n".join(blocos_opcoes)
+
+    prompt = f"""Você é um assistente que extrai informações estruturadas de reclamações de consumidores.
+
+O usuário descreveu uma reclamação em linguagem natural. Sua tarefa é ler a descrição e selecionar, para cada campo do formulário, a opção que MELHOR corresponde ao que o usuário descreveu.
+
+## Descrição do usuário
+\"\"\"{descricao}\"\"\"
+
+## Campos e opções válidas
+Para cada campo, escolha EXATAMENTE UMA opção da lista. Se a descrição não mencionar informação suficiente para um campo, use "Não informado".
+
+{{
+{opcoes_texto}
+}}
+
+## Regras obrigatórias
+1. Responda APENAS com um JSON válido, sem texto antes ou depois, sem markdown, sem ```json.
+2. Use EXATAMENTE os nomes dos campos como chaves.
+3. Use EXATAMENTE um dos valores listados — não invente valores novos.
+4. Para "Mês Abertura", converta o nome do mês para número (ex: janeiro → 1, março → 3).
+5. Para "Ano Abertura", extraia o ano se mencionado.
+6. Para "Procurou Empresa", use "S" se o usuário disse que procurou/contactou a empresa, "N" caso contrário, "Não informado" se não mencionou.
+7. Infira "Região" e "UF" se o usuário mencionar estado ou cidade.
+8. Escolha o "Problema", "Assunto", "Grupo Problema", "Segmento de Mercado" e "Área" que melhor se encaixam na descrição, mesmo que não sejam exatos.
+9. Se o valor exato não existir na lista mas houver um semelhante, escolha o mais próximo.
+
+Responda SOMENTE com o JSON.""".strip()
+
+    texto, modelo_usado = chamar_gemini_com_fallback(prompt, max_tokens=1024)
+
+    # Limpar possíveis marcadores de code block
+    texto = texto.strip()
+    if texto.startswith("```"):
+        texto = texto.split("\n", 1)[-1]
+    if texto.endswith("```"):
+        texto = texto.rsplit("```", 1)[0]
+    texto = texto.strip()
+
+    try:
+        campos = json.loads(texto)
+    except json.JSONDecodeError:
+        # Tentar extrair JSON de dentro do texto
+        inicio = texto.find("{")
+        fim = texto.rfind("}")
+        if inicio != -1 and fim != -1:
+            try:
+                campos = json.loads(texto[inicio : fim + 1])
+            except json.JSONDecodeError:
+                raise GeminiIndisponivelError(
+                    categoria="todos_falharam",
+                    mensagem_usuario="A IA retornou uma resposta que não foi possível interpretar. Tente reformular a descrição.",
+                    detalhe_tecnico=f"Resposta recebida: {texto[:500]}",
+                )
+        else:
+            raise GeminiIndisponivelError(
+                categoria="todos_falharam",
+                mensagem_usuario="A IA retornou uma resposta que não foi possível interpretar. Tente reformular a descrição.",
+                detalhe_tecnico=f"Resposta recebida: {texto[:500]}",
+            )
+
+    if not isinstance(campos, dict):
+        raise GeminiIndisponivelError(
+            categoria="todos_falharam",
+            mensagem_usuario="A IA retornou uma resposta em formato inesperado.",
+            detalhe_tecnico=f"Tipo recebido: {type(campos).__name__}",
+        )
+
+    # Validar: garantir que os valores retornados existam nas opções reais
+    campos_validados = {}
+    for campo in CAMPOS_FORMULARIO:
+        valor_llm = str(campos.get(campo, "Não informado")).strip()
+        lista_valida = opcoes(dados_df, campo)
+
+        if valor_llm in lista_valida:
+            campos_validados[campo] = valor_llm
+        else:
+            # Tentar match case-insensitive
+            mapa_lower = {v.lower(): v for v in lista_valida}
+            if valor_llm.lower() in mapa_lower:
+                campos_validados[campo] = mapa_lower[valor_llm.lower()]
+            else:
+                campos_validados[campo] = "Não informado"
+
+    return campos_validados, modelo_usado
+
+
+# ============================================================
 # Explicações (template fixo + camada opcional de IA)
 # ============================================================
 
@@ -840,73 +963,142 @@ Essa probabilidade não garante o resultado de uma reclamação individual. Ela 
 
 
 def explicacao_llm_gemini(probabilidade, media_geral, media_grupo, entrada):
+    # Extrair todas as características da reclamação
+    area = entrada["Área"].iloc[0]
+    segmento = entrada["Segmento de Mercado"].iloc[0]
+    assunto = entrada["Assunto"].iloc[0]
+    grupo = entrada["Grupo Problema"].iloc[0]
+    problema = entrada["Problema"].iloc[0]
+    uf = entrada["UF"].iloc[0]
+    regiao = entrada["Região"].iloc[0]
+    sexo = entrada["Sexo"].iloc[0]
+    faixa = entrada["Faixa Etária"].iloc[0]
+    canal = entrada["Canal de Origem"].iloc[0]
+    como = entrada["Como Comprou Contratou"].iloc[0]
+    procurou = entrada["Procurou Empresa"].iloc[0]
+    ano = entrada["Ano Abertura"].iloc[0]
+    mes = entrada["Mês Abertura"].iloc[0]
+
+    # Classificar a probabilidade em relação às médias
+    if probabilidade > media_geral + 0.03:
+        comp_geral = "ACIMA"
+    elif probabilidade < media_geral - 0.03:
+        comp_geral = "ABAIXO"
+    else:
+        comp_geral = "PRÓXIMA"
+
+    if probabilidade > media_grupo + 0.03:
+        comp_grupo = "ACIMA"
+    elif probabilidade < media_grupo - 0.03:
+        comp_grupo = "ABAIXO"
+    else:
+        comp_grupo = "PRÓXIMA"
+
+    # Carregar dados de interpretação para contextualizar
+    contexto_interpretacao = ""
+    try:
+        interp = carregar_interpretacao()
+        reg_aum = interp["reg_aumentam"]
+        reg_red = interp["reg_reduzem"]
+
+        # Buscar se alguma das categorias selecionadas aparece entre as que mais aumentam
+        fatores_positivos = []
+        fatores_negativos = []
+
+        categorias_usuario = {
+            "Área": area,
+            "Segmento de Mercado": segmento,
+            "Assunto": assunto,
+            "Problema": problema,
+        }
+
+        if not reg_aum.empty and "categoria" in reg_aum.columns and "variavel" in reg_aum.columns:
+            for var, cat in categorias_usuario.items():
+                match = reg_aum[(reg_aum["variavel"] == var) & (reg_aum["categoria"] == cat)]
+                if not match.empty:
+                    fatores_positivos.append(f"{var}: {cat}")
+
+        if not reg_red.empty and "categoria" in reg_red.columns and "variavel" in reg_red.columns:
+            for var, cat in categorias_usuario.items():
+                match = reg_red[(reg_red["variavel"] == var) & (reg_red["categoria"] == cat)]
+                if not match.empty:
+                    fatores_negativos.append(f"{var}: {cat}")
+
+        if fatores_positivos:
+            contexto_interpretacao += "\nFatores desta reclamação que AUMENTAM a chance de resolução segundo o modelo:\n"
+            for f in fatores_positivos:
+                contexto_interpretacao += f"- {f}\n"
+
+        if fatores_negativos:
+            contexto_interpretacao += "\nFatores desta reclamação que REDUZEM a chance de resolução segundo o modelo:\n"
+            for f in fatores_negativos:
+                contexto_interpretacao += f"- {f}\n"
+
+        if not fatores_positivos and not fatores_negativos:
+            contexto_interpretacao += (
+                "\nNenhuma das categorias específicas desta reclamação aparece entre as que "
+                "mais influenciam a probabilidade (nem positiva nem negativamente), o que "
+                "significa que o resultado é determinado pela combinação geral das características."
+            )
+    except Exception:
+        pass
+
     prompt = f"""
-Você é um assistente que explica resultados de aprendizado de máquina em linguagem simples.
+Você é um especialista em análise de dados que explica resultados de modelos de machine learning de forma clara, específica e personalizada.
 
-Um modelo supervisionado estimou a probabilidade de uma reclamação do Consumidor.gov.br ser avaliada como resolvida.
+Um modelo de Regressão Logística, treinado com dados históricos do Consumidor.gov.br, estimou a probabilidade de uma reclamação específica ser avaliada como resolvida pelo consumidor.
 
-Resultado calculado pelo modelo:
-- Probabilidade estimada: {fmt_pct(probabilidade)}
-- Média geral histórica: {fmt_pct(media_geral)}
-- Média do grupo de problema: {fmt_pct(media_grupo)}
+## Resultado do modelo
+- Probabilidade estimada de resolução: {fmt_pct(probabilidade)}
+- Média geral histórica de resolução: {fmt_pct(media_geral)}
+- Média histórica do grupo de problema "{grupo}": {fmt_pct(media_grupo)}
+- Comparação com a média geral: {comp_geral}
+- Comparação com a média do grupo: {comp_grupo}
 
-Características da reclamação:
-- Área: {entrada["Área"].iloc[0]}
-- Segmento de Mercado: {entrada["Segmento de Mercado"].iloc[0]}
-- Assunto: {entrada["Assunto"].iloc[0]}
-- Grupo Problema: {entrada["Grupo Problema"].iloc[0]}
-- Problema: {entrada["Problema"].iloc[0]}
-- UF: {entrada["UF"].iloc[0]}
-- Procurou Empresa: {entrada["Procurou Empresa"].iloc[0]}
+## Perfil completo da reclamação simulada
+- Problema específico: {problema}
+- Grupo de problema: {grupo}
+- Área: {area}
+- Assunto: {assunto}
+- Segmento de Mercado: {segmento}
+- UF: {uf} ({regiao})
+- Canal de Origem: {canal}
+- Como Comprou/Contratou: {como}
+- Procurou a Empresa antes: {procurou}
+- Sexo: {sexo}
+- Faixa Etária: {faixa}
+- Ano/Mês: {ano}/{mes}
 
-Regras:
-- Não altere a probabilidade.
-- Não diga que a reclamação será resolvida com certeza.
-- Não dê conselho jurídico.
-- Não invente informações.
-- Use no máximo 120 palavras.
-- Explique que é uma estimativa estatística baseada em dados históricos.
+## Contexto do modelo (dados de interpretação)
+{contexto_interpretacao}
+
+## Instruções
+Escreva uma explicação PERSONALIZADA e ESPECÍFICA para esta reclamação. Siga estas regras:
+
+1. Comece dizendo a probabilidade estimada e o que ela significa na prática para ESTE caso específico.
+2. Compare com a média geral E com a média do grupo de problema "{grupo}", explicando se está acima, abaixo ou próxima.
+3. Analise os fatores específicos desta reclamação que podem estar influenciando o resultado:
+   - O tipo de problema "{problema}" e como ele se comporta historicamente.
+   - O segmento "{segmento}" e se empresas desse tipo tendem a resolver mais ou menos.
+   - Se o consumidor procurou a empresa antes (valor: {procurou}) e como isso costuma afetar.
+   - O canal de origem "{canal}" e a forma de compra "{como}".
+4. Se houver fatores que aumentam ou reduzem a probabilidade (listados acima), mencione-os explicitamente.
+5. Termine com uma nota sobre o que essa probabilidade significa e não significa.
+
+Regras obrigatórias:
+- NÃO altere o valor da probabilidade ({fmt_pct(probabilidade)}).
+- NÃO diga que a reclamação será ou não resolvida com certeza.
+- NÃO dê conselho jurídico.
+- NÃO invente informações que não estejam no contexto acima.
+- Use linguagem acessível, mas não superficial.
+- Seja específico — NUNCA use frases genéricas que serviriam para qualquer reclamação.
+- Use markdown para formatação (negrito, listas, etc.).
 """.strip()
 
     return chamar_gemini_com_fallback(prompt)
 
 
-def responder_llm(pergunta):
-    contexto = """
-Projeto: estimativa de resolução de reclamações no Consumidor.gov.br.
 
-Modelos avaliados:
-- Regressão Logística
-- Árvore de Decisão
-- XGBoost
-- SVM Linear calibrado
-
-Resultados no teste de 2026:
-- XGBoost teve melhor F1 macro: 0,640.
-- XGBoost teve melhor ROC-AUC: 0,690.
-- Regressão Logística teve melhor Brier Score: 0,214.
-- Regressão Logística teve melhor Log Loss: 0,619.
-- A Regressão Logística foi escolhida para o painel porque o objetivo é estimar probabilidades.
-- A probabilidade estimada não é garantia de resolução.
-""".strip()
-
-    prompt = f"""
-Responda com base apenas no contexto.
-
-Contexto:
-{contexto}
-
-Pergunta:
-{pergunta}
-
-Regras:
-- Responda em português.
-- Use linguagem simples.
-- Seja breve.
-- Não dê conselho jurídico.
-""".strip()
-
-    return chamar_gemini_com_fallback(prompt)
 
 
 # ============================================================
@@ -919,7 +1111,6 @@ PAGINAS = [
     "Visão geral dos dados",
     "Resultados dos modelos",
     "Interpretação",
-    "Assistente LLM",
     "Sobre e limitações",
 ]
 
@@ -929,7 +1120,6 @@ ICONES_PAGINA = {
     "Visão geral dos dados": "📊",
     "Resultados dos modelos": "🧪",
     "Interpretação": "🔎",
-    "Assistente LLM": "🤖",
     "Sobre e limitações": "ℹ️",
 }
 
@@ -1094,17 +1284,76 @@ elif pagina == "Simulador":
         "estimada de ela ser avaliada como **resolvida** pelo consumidor."
     )
 
+    # ---- Preenchimento automático por IA ----
+    with st.container(border=True):
+        st.markdown(
+            '<div class="cg-eyebrow">✨ Preenchimento automático com IA</div>',
+            unsafe_allow_html=True,
+        )
+        st.caption(
+            "Descreva sua reclamação em linguagem natural e a IA preencherá os campos automaticamente. "
+            "Inclua detalhes como: tipo de problema, empresa ou segmento, como comprou, se procurou a empresa, "
+            "data, estado/cidade e qualquer informação relevante."
+        )
+
+        descricao_ia = st.text_area(
+            "Descreva sua reclamação",
+            placeholder=(
+                "Ex.: Em março de 2026, comprei um celular pela internet em uma loja de eletrônicos. "
+                "O produto chegou com defeito e, mesmo após procurar a empresa, não consegui trocar. "
+                "Moro em São Paulo."
+            ),
+            height=120,
+            key="descricao_ia",
+        )
+
+        col_btn_ia, col_status_ia = st.columns([1, 3])
+        with col_btn_ia:
+            preencher_ia = st.button("🤖 Preencher com IA", type="secondary", disabled=not descricao_ia.strip())
+        with col_status_ia:
+            if "ia_modelo_usado" in st.session_state:
+                st.markdown(
+                    pill_html(
+                        f"✅ Campos preenchidos por {st.session_state['ia_modelo_usado']} — revise e ajuste abaixo",
+                        "ok",
+                    ),
+                    unsafe_allow_html=True,
+                )
+
+    if preencher_ia and descricao_ia.strip():
+        with st.spinner("Analisando sua descrição com a Gemini API..."):
+            try:
+                campos_extraidos, modelo_usado = extrair_campos_com_gemini(descricao_ia.strip(), dados)
+                st.session_state["campos_ia"] = campos_extraidos
+                st.session_state["ia_modelo_usado"] = modelo_usado
+                st.rerun()
+            except Exception as erro:
+                exibir_erro_gemini(erro)
+
+    # ---- Helpers para default dos selectboxes ----
+    def _indice_padrao(campo):
+        """Retorna o índice da opção pré-selecionada pela IA, ou 0."""
+        if "campos_ia" not in st.session_state:
+            return 0
+        valor = st.session_state["campos_ia"].get(campo, "Não informado")
+        lista = opcoes(dados, campo)
+        try:
+            return lista.index(valor)
+        except ValueError:
+            return 0
+
+    # ---- Formulário de campos ----
     with st.form("form_simulador"):
         st.markdown('<div class="cg-eyebrow">Quem é o consumidor</div>', unsafe_allow_html=True)
         col1, col2, col3, col4 = st.columns(4)
         with col1:
-            sexo = st.selectbox("Sexo", opcoes(dados, "Sexo"))
+            sexo = st.selectbox("Sexo", opcoes(dados, "Sexo"), index=_indice_padrao("Sexo"))
         with col2:
-            faixa = st.selectbox("Faixa Etária", opcoes(dados, "Faixa Etária"))
+            faixa = st.selectbox("Faixa Etária", opcoes(dados, "Faixa Etária"), index=_indice_padrao("Faixa Etária"))
         with col3:
-            regiao = st.selectbox("Região", opcoes(dados, "Região"))
+            regiao = st.selectbox("Região", opcoes(dados, "Região"), index=_indice_padrao("Região"))
         with col4:
-            uf = st.selectbox("UF", opcoes(dados, "UF"))
+            uf = st.selectbox("UF", opcoes(dados, "UF"), index=_indice_padrao("UF"))
 
         st.markdown(
             '<div class="cg-eyebrow" style="margin-top:.6rem;">Como a reclamação foi registrada</div>',
@@ -1112,13 +1361,13 @@ elif pagina == "Simulador":
         )
         col5, col6, col7, col8 = st.columns(4)
         with col5:
-            canal = st.selectbox("Canal de Origem", opcoes(dados, "Canal de Origem"))
+            canal = st.selectbox("Canal de Origem", opcoes(dados, "Canal de Origem"), index=_indice_padrao("Canal de Origem"))
         with col6:
-            como = st.selectbox("Como Comprou Contratou", opcoes(dados, "Como Comprou Contratou"))
+            como = st.selectbox("Como Comprou Contratou", opcoes(dados, "Como Comprou Contratou"), index=_indice_padrao("Como Comprou Contratou"))
         with col7:
-            ano = st.selectbox("Ano Abertura", opcoes(dados, "Ano Abertura"))
+            ano = st.selectbox("Ano Abertura", opcoes(dados, "Ano Abertura"), index=_indice_padrao("Ano Abertura"))
         with col8:
-            mes = st.selectbox("Mês Abertura", opcoes(dados, "Mês Abertura"))
+            mes = st.selectbox("Mês Abertura", opcoes(dados, "Mês Abertura"), index=_indice_padrao("Mês Abertura"))
 
         st.markdown(
             '<div class="cg-eyebrow" style="margin-top:.6rem;">Sobre o problema</div>',
@@ -1126,19 +1375,19 @@ elif pagina == "Simulador":
         )
         col9, col10, col11 = st.columns(3)
         with col9:
-            segmento = st.selectbox("Segmento de Mercado", opcoes(dados, "Segmento de Mercado"))
+            segmento = st.selectbox("Segmento de Mercado", opcoes(dados, "Segmento de Mercado"), index=_indice_padrao("Segmento de Mercado"))
         with col10:
-            area = st.selectbox("Área", opcoes(dados, "Área"))
+            area = st.selectbox("Área", opcoes(dados, "Área"), index=_indice_padrao("Área"))
         with col11:
-            assunto = st.selectbox("Assunto", opcoes(dados, "Assunto"))
+            assunto = st.selectbox("Assunto", opcoes(dados, "Assunto"), index=_indice_padrao("Assunto"))
 
         col12, col13, col14 = st.columns(3)
         with col12:
-            grupo = st.selectbox("Grupo Problema", opcoes(dados, "Grupo Problema"))
+            grupo = st.selectbox("Grupo Problema", opcoes(dados, "Grupo Problema"), index=_indice_padrao("Grupo Problema"))
         with col13:
-            problema = st.selectbox("Problema", opcoes(dados, "Problema"))
+            problema = st.selectbox("Problema", opcoes(dados, "Problema"), index=_indice_padrao("Problema"))
         with col14:
-            procurou = st.selectbox("Procurou Empresa", opcoes(dados, "Procurou Empresa"))
+            procurou = st.selectbox("Procurou Empresa", opcoes(dados, "Procurou Empresa"), index=_indice_padrao("Procurou Empresa"))
 
         st.write("")
         usar_llm = st.checkbox("✨ Gerar explicação em linguagem simples com IA (Gemini)", value=False)
@@ -1197,7 +1446,7 @@ elif pagina == "Simulador":
         col_gauge, col_kpis = st.columns([3, 2])
 
         with col_gauge:
-            st.plotly_chart(grafico_gauge_probabilidade(probabilidade, media_geral), width="stretch")
+            st.plotly_chart(grafico_gauge_probabilidade(probabilidade, media_geral), use_container_width=True)
 
         with col_kpis:
             st.write("")
@@ -1335,7 +1584,7 @@ elif pagina == "Resultados dos modelos":
             }
         )
 
-        st.dataframe(tabela, width="stretch", hide_index=True)
+        st.dataframe(tabela, use_container_width=True, hide_index=True)
 
         sub1, sub2 = st.tabs(["Gráficos interativos", "Gráficos salvos"])
 
@@ -1369,7 +1618,7 @@ elif pagina == "Resultados dos modelos":
                 caminho = pasta / nome
                 if caminho.exists():
                     algum_encontrado = True
-                    st.image(str(caminho), caption=nome, width="stretch")
+                    st.image(str(caminho), caption=nome, use_column_width=True)
 
             if not algum_encontrado:
                 st.info("Nenhuma imagem encontrada em `results/graficos/`.")
@@ -1399,14 +1648,14 @@ elif pagina == "Resultados dos modelos":
                 }
             )
 
-            st.dataframe(tabela_v, width="stretch", hide_index=True)
+            st.dataframe(tabela_v, use_container_width=True, hide_index=True)
 
             grafico_barra(resultados_validacao, col_modelo_v, col_f1_v, "F1 macro (validação)", mapa_cores=mapa_cores_modelos)
             grafico_barra(resultados_validacao, col_modelo_v, col_auc_v, "ROC-AUC (validação)", mapa_cores=mapa_cores_modelos)
 
     if modo_detalhado and not tuning.empty:
         with st.expander("🔧 Resultados de tuning de hiperparâmetros (avançado)", expanded=False):
-            st.dataframe(tuning, width="stretch", hide_index=True)
+            st.dataframe(tuning, use_container_width=True, hide_index=True)
 
 
 # ============================================================
@@ -1442,14 +1691,14 @@ elif pagina == "Interpretação":
             if reg_var.empty:
                 st.info("Arquivo de interpretação não encontrado.")
             else:
-                st.dataframe(reg_var, width="stretch", hide_index=True)
+                st.dataframe(reg_var, use_container_width=True, hide_index=True)
 
         with c2:
             st.markdown("##### XGBoost")
             if xgb_var.empty:
                 st.info("Arquivo de interpretação não encontrado.")
             else:
-                st.dataframe(xgb_var, width="stretch", hide_index=True)
+                st.dataframe(xgb_var, use_container_width=True, hide_index=True)
 
     with aba2:
         st.caption(
@@ -1463,97 +1712,24 @@ elif pagina == "Interpretação":
             if reg_aum.empty:
                 st.info("Arquivo não encontrado.")
             else:
-                st.dataframe(reg_aum, width="stretch", hide_index=True)
+                st.dataframe(reg_aum, use_container_width=True, hide_index=True)
 
         with c2:
             st.markdown("##### ⬇️ Reduzem a probabilidade")
             if reg_red.empty:
                 st.info("Arquivo não encontrado.")
             else:
-                st.dataframe(reg_red, width="stretch", hide_index=True)
+                st.dataframe(reg_red, use_container_width=True, hide_index=True)
 
     with aba3:
         st.caption("Importância das variáveis (em formato codificado) segundo o modelo XGBoost.")
         if xgb_feat.empty:
             st.info("Arquivo não encontrado.")
         else:
-            st.dataframe(xgb_feat, width="stretch", hide_index=True)
+            st.dataframe(xgb_feat, use_container_width=True, hide_index=True)
 
 
-# ============================================================
-# Página: Assistente LLM
-# ============================================================
 
-elif pagina == "Assistente LLM":
-    st.title("🤖 Assistente de IA")
-
-    st.write(
-        "Esta página usa a Gemini API para responder, em linguagem simples, perguntas sobre o "
-        "projeto e os resultados já calculados. A IA **não** calcula probabilidades, não "
-        "altera resultados e não substitui o modelo supervisionado treinado."
-    )
-
-    with st.expander("⚙️ Configuração da Gemini API", expanded=modo_detalhado):
-        if obter_gemini_api_key():
-            st.markdown(pill_html("🔑 Uma chave de API foi encontrada neste ambiente.", "ok"), unsafe_allow_html=True)
-        else:
-            st.markdown(pill_html("🔑 Nenhuma chave de API foi encontrada neste ambiente.", "warn"), unsafe_allow_html=True)
-
-        st.write("Configure a chave de uma das formas abaixo, a partir da raiz do projeto:")
-
-        col_a, col_b = st.columns(2)
-        with col_a:
-            st.caption("Opção 1 — variável de ambiente")
-            st.code('export GEMINI_API_KEY="sua_chave_aqui"\nstreamlit run app/streamlit_app.py', language="bash")
-        with col_b:
-            st.caption("Opção 2 — `.streamlit/secrets.toml`")
-            st.code('GEMINI_API_KEY = "sua_chave_aqui"', language="toml")
-
-        st.write("Ordem de fallback entre modelos Gemini:")
-        for i, (model_id, label) in enumerate(GEMINI_MODELS_FALLBACK, start=1):
-            st.caption(f"{i}. {label}  ·  `{model_id}`")
-
-        if st.button("🔧 Testar conexão com a Gemini API"):
-            with st.spinner("Testando conexão..."):
-                try:
-                    _, modelo_usado = chamar_gemini_com_fallback(
-                        "Responda apenas com a palavra: ok", max_tokens=10
-                    )
-                    st.success(f"✅ Conexão funcionando — resposta recebida de **{modelo_usado}**.")
-                except Exception as erro:
-                    exibir_erro_gemini(erro)
-
-    st.markdown('<div class="cg-eyebrow">Perguntas frequentes</div>', unsafe_allow_html=True)
-
-    pergunta = st.selectbox(
-        "Escolha uma pergunta",
-        [
-            "O que significa F1 macro?",
-            "Por que o XGBoost foi o melhor classificador?",
-            "Por que a Regressão Logística foi escolhida para o painel?",
-            "O que significa Brier Score?",
-            "O que significa Log Loss?",
-            "Por que a acurácia não foi a métrica principal?",
-            "Quais são as limitações do modelo?",
-        ],
-    )
-
-    pergunta_livre = st.text_input(
-        "Ou digite sua própria pergunta sobre o projeto (opcional)",
-        placeholder="Ex.: como os dados de 2026 foram divididos entre treino e teste?",
-    )
-
-    pergunta_final = pergunta_livre.strip() or pergunta
-
-    if st.button("Responder com Gemini", type="primary"):
-        with st.spinner("Gerando resposta com a Gemini API..."):
-            try:
-                resposta, modelo_usado = responder_llm(pergunta_final)
-                with st.container(border=True):
-                    st.caption(f"🤖 Resposta gerada por {modelo_usado}")
-                    st.markdown(resposta)
-            except Exception as erro:
-                exibir_erro_gemini(erro)
 
 
 # ============================================================

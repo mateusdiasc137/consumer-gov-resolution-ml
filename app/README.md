@@ -69,67 +69,98 @@ modelo.predict_proba(entrada)[:, 1][0]
 O painel possui as seguintes páginas:
 
 ```text
-Início
-Simulador
-Visão geral dos dados
-Resultados dos modelos
-Interpretação
-Assistente LLM
-Sobre e limitações
+Início              → Visão geral do projeto, KPIs e navegação rápida
+Simulador           → Preenchimento manual ou por IA + cálculo de probabilidade
+Visão geral         → Distribuições dos dados por segmento, grupo, UF e ano
+Resultados          → Comparação entre modelos (F1, ROC-AUC, Brier, Log Loss)
+Interpretação       → Importância das variáveis e categorias por modelo
+Sobre e limitações  → Escopo, cuidados éticos e status dos arquivos
 ```
+
+## Simulador: preenchimento automático com IA
+
+O simulador possui um campo de texto onde o usuário pode descrever sua reclamação em linguagem natural. Ao clicar em **"🤖 Preencher com IA"**, a descrição é enviada à Gemini API, que extrai as informações e seleciona automaticamente os valores mais adequados para cada campo do formulário.
+
+### Exemplo de uso
+
+O usuário digita:
+
+> Em março de 2026, comprei um celular pela internet em uma loja de eletrônicos. O produto chegou com defeito e, mesmo após procurar a empresa, não consegui trocar. Moro em São Paulo.
+
+A IA preenche automaticamente campos como:
+
+- **Mês Abertura** → `3`
+- **Ano Abertura** → `2026`
+- **Canal de Origem** → `Internet`
+- **Segmento de Mercado** → segmento mais próximo de eletrônicos
+- **Problema** → problema mais próximo de troca/defeito
+- **Procurou Empresa** → `S`
+- **UF** → `SP`
+- **Região** → `Sudeste`
+
+### Como funciona internamente
+
+1. A função `extrair_campos_com_gemini()` monta um prompt contendo a descrição do usuário e todas as opções válidas de cada campo (extraídas dos dados de treino).
+2. A Gemini API retorna um JSON estruturado com os valores selecionados.
+3. Os valores são validados contra as opções reais do dataset (com fallback case-insensitive). Valores inválidos são substituídos por "Não informado".
+4. Os selectboxes do formulário são pré-preenchidos via `st.session_state`.
+5. O usuário pode **modificar qualquer campo manualmente** antes de clicar "Estimar probabilidade".
 
 ## Uso da Gemini API
 
-O painel usa a Gemini API apenas como camada opcional de explicação textual.
+O painel usa a Gemini API em dois contextos distintos. Em nenhum deles a LLM calcula probabilidades, altera resultados ou substitui o modelo supervisionado.
 
-A LLM não calcula probabilidades, não substitui o modelo supervisionado, não altera os resultados e não toma decisões sobre reclamações individuais.
+### 1. Preenchimento automático de campos (Simulador)
 
-A ordem de fallback configurada é:
+Quando o usuário descreve sua reclamação em texto livre, a IA extrai informações estruturadas e preenche o formulário. A resposta é um JSON com os valores de cada campo, validados contra as opções reais do dataset.
 
-```text
-1. Gemini 3.5 Flash      -> gemini-3.5-flash
-2. Gemini 3 Flash        -> gemini-3-flash
-3. Gemini 3.1 Flash Lite -> gemini-3.1-flash-lite
-```
+### 2. Explicação personalizada do resultado (Simulador)
+
+Após o cálculo da probabilidade, o usuário pode opcionalmente solicitar uma explicação em linguagem simples gerada pela IA. O prompt inclui:
+
+- Todas as 14 características da reclamação simulada
+- Probabilidade estimada e comparação com médias (geral e do grupo)
+- Dados de interpretação do modelo (quais categorias da reclamação aumentam ou reduzem a probabilidade segundo a Regressão Logística)
+
+Isso gera uma explicação específica para cada caso, e não uma resposta genérica.
 
 ## Configurando a chave da API
 
-Defina a chave da Gemini API como variável de ambiente:
+A chave da Gemini API é necessária apenas para as funcionalidades de IA. O painel funciona normalmente sem ela — apenas o preenchimento automático e a explicação por IA ficam indisponíveis.
+
+Defina a chave como variável de ambiente:
 
 ```bash
 export GEMINI_API_KEY="SUA_CHAVE_AQUI"
-```
-
-Depois rode:
-
-```bash
 streamlit run app/streamlit_app.py
 ```
 
-Também é possível usar o arquivo de segredos do Streamlit:
+Ou use o arquivo de segredos do Streamlit:
 
 ```bash
 mkdir -p .streamlit
-nano .streamlit/secrets.toml
 ```
 
-Dentro do arquivo:
+Dentro de `.streamlit/secrets.toml`:
 
 ```toml
 GEMINI_API_KEY = "SUA_CHAVE_AQUI"
 ```
 
-## Funcionamento do fallback
+## Fallback entre modelos Gemini
 
-Quando o usuário solicita uma explicação com LLM, o painel tenta chamar os modelos na seguinte ordem:
+Quando qualquer funcionalidade de IA é acionada, o painel tenta os modelos na seguinte ordem:
 
 ```text
-gemini-3.5-flash
-gemini-3-flash
-gemini-3.1-flash-lite
+1. gemini-3.5-flash
+2. gemini-3.1-flash-lite
+3. gemini-2.5-flash
 ```
 
-Se o primeiro modelo falhar por indisponibilidade, limite ou erro de modelo, o painel tenta automaticamente o próximo. Se todos falharem, o painel mantém a explicação automática por template.
+Se o primeiro modelo falhar por indisponibilidade, limite de requisições ou erro, o painel tenta automaticamente o próximo. Se todos falharem:
+
+- No preenchimento automático: uma mensagem de erro é exibida e o formulário permanece sem alterações.
+- Na explicação do resultado: a explicação automática por template (sem IA) é exibida no lugar.
 
 ## Observação
 
